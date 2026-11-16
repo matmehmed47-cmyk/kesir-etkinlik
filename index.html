@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kesirlerde Toplama</title>
+<style>
+/* ===== Renk paleti: Fin Kışı ===== */
+:root{
+  --night:#13293D; --snow:#F3F6F8; --card:#FCFDFE; --mist:#E8EEF3;
+  --text:#3F5163; --line:#DCE3EA;
+  --a:#1E5BB8; --a-soft:#E4EDF9;   /* 1/2 için mavi */
+  --b:#C2530E; --b-soft:#FBE9DC;   /* 1/3 için turuncu */
+  --ok:#1F8A5B; --ok-soft:#E3F3EB; /* doğru */
+  --err:#B42318; --err-soft:#FBE7E5; /* uyarı */
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--snow); color:var(--text);
+  font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+  font-size:18px; line-height:1.5; overflow-x:hidden;
+}
+.wrap{max-width:1100px; margin:0 auto; padding:16px 16px 28px}
+.top{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+.tag{display:inline-block; font-size:.85rem; font-weight:600; color:var(--a); background:var(--a-soft); padding:6px 12px; border-radius:999px}
+h2{color:var(--night); font-size:clamp(1.35rem,4.5vw,1.8rem); margin:4px 0 14px; line-height:1.25}
+.card{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:18px; box-shadow:0 2px 10px rgba(19,41,61,.05)}
+.hidden{display:none !important}
+.scene{animation:msgIn .5s ease both}
+
+/* ===== Kesir gösterimi (pay üstte, çizgi, payda altta) ===== */
+.frac{display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; line-height:1; font-weight:700; margin:0 .08em}
+.frac>span{display:block; padding:0 .14em}
+.frac>.den{border-top:.08em solid currentColor; margin-top:.07em; padding-top:.07em}
+.frac.sm{font-size:.82em}
+.frac.xl{font-size:2.5rem}
+.c-a{color:var(--a)} .c-b{color:var(--b)} .c-r{color:var(--night)} .c-ok{color:var(--ok)} .c-t{color:var(--text)}
+
+/* ===== Öğretmen avatarı + konuşma balonu ===== */
+.teacher{display:flex; gap:12px; align-items:flex-start}
+.avatar{flex:0 0 66px; text-align:center; font-size:.72rem; font-weight:700; color:var(--night); line-height:1.2}
+.avatar svg{width:58px; height:58px; display:block; margin:0 auto 3px}
+.bubble{position:relative; flex:1; min-width:0; background:var(--card); border:2px solid var(--line); border-radius:16px;
+  padding:12px 16px; font-size:1.12rem; color:var(--night); min-height:66px; line-height:1.6}
+.bubble::before{content:""; position:absolute; left:-10px; top:22px; width:16px; height:16px; background:var(--card);
+  border-left:2px solid var(--line); border-bottom:2px solid var(--line); transform:rotate(45deg)}
+.msg{display:block; animation:msgIn .5s ease both}
+.w{display:inline-block; opacity:0; animation:msgIn .4s ease forwards}
+@keyframes msgIn{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+
+/* ===== Giriş: büyük denklem ===== */
+.equation{display:flex; justify-content:center; align-items:center; gap:.28em; flex-wrap:wrap;
+  font-size:clamp(2.3rem,9vw,3.8rem); color:var(--night); margin:22px 0 18px; font-weight:700}
+.equation .frac{font-size:1em}
+.eq-part{opacity:0; transform:scale(.5)}
+.eq-part.on{animation:pop .6s cubic-bezier(.3,1.6,.5,1) forwards}
+@keyframes pop{from{opacity:0; transform:scale(.5)} to{opacity:1; transform:scale(1)}}
+.qbox{display:inline-flex; align-items:center; justify-content:center; width:1.3em; height:1.7em; border:3px dashed var(--line);
+  border-radius:12px; color:var(--ok)}
+
+/* ===== Cevap kartı ===== */
+.answer-card{position:relative; overflow:hidden; animation:msgIn .6s ease both}
+.ans-title{font-weight:700; color:var(--night); margin:0 0 10px; font-size:1.1rem}
+.ans-row{display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:14px 20px}
+.ans-eq{display:flex; align-items:center; gap:.3em; font-size:1.7rem; font-weight:700; color:var(--night)}
+.ans-frac{display:inline-flex; flex-direction:column; align-items:center; gap:7px}
+.ans-frac input{width:84px; height:60px; font:inherit; font-size:1.8rem; font-weight:700; text-align:center; color:var(--night);
+  border:2px solid var(--line); border-radius:12px; background:#fff; padding:0}
+.ans-frac input:focus{outline:3px solid var(--a); outline-offset:1px; border-color:var(--a)}
+.ans-frac input:disabled{background:var(--mist)}
+.ans-bar{width:98px; height:5px; border-radius:3px; background:var(--night)}
+.ans-frac.good input{border-color:var(--ok); background:var(--ok-soft)}
+.ans-frac.bad input{border-color:var(--err)}
+.shake{animation:shake .45s ease}
+@keyframes shake{0%,100%{transform:translateX(0)} 20%{transform:translateX(-9px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(4px)}}
+.tries{text-align:center; font-size:.95rem; color:var(--text); margin-top:10px; min-height:1.4em}
+.feedback{margin-top:12px; border-radius:12px}
+.feedback:empty{display:none}
+.fb{padding:12px 14px; border-radius:12px; border-left:6px solid; animation:msgIn .4s ease both}
+.fb p{margin:0} .fb p+p{margin-top:6px}
+.fb.ok{background:var(--ok-soft); border-color:var(--ok); color:#155F3F}
+.fb.err{background:var(--err-soft); border-color:var(--err); color:#8A1A12}
+.fb.info{background:var(--a-soft); border-color:var(--a); color:#173F7E}
+.fb .hint{color:var(--night); font-weight:500}
+.watch-row{display:flex; justify-content:center; margin-top:12px}
+
+.give-up{margin-top:16px; border-top:1px dashed var(--line); padding-top:14px}
+.give-up label{display:flex; align-items:center; gap:12px; min-height:48px; cursor:pointer; font-weight:600; color:var(--night)}
+.give-up input{width:28px; height:28px; flex:0 0 28px; accent-color:var(--night); cursor:pointer; margin:0}
+.give-up.off label{opacity:.45; cursor:not-allowed}
+.give-up.off input{cursor:not-allowed}
+.give-up .note{margin:2px 0 0 40px; font-size:.9rem; color:var(--text)}
+
+/* Kutlama konfetisi */
+.confetti{position:absolute; left:50%; top:40%; width:10px; height:14px; border-radius:2px; pointer-events:none;
+  animation:burst 1.3s ease-out forwards}
+@keyframes burst{
+  0%{opacity:1; transform:translate(0,0) rotate(0)}
+  100%{opacity:0; transform:translate(var(--dx),var(--dy)) rotate(var(--rot))}
+}
+
+/* ===== Düğmeler (en az 44px) ===== */
+.btn{min-height:48px; min-width:44px; padding:10px 20px; border-radius:12px; border:2px solid transparent; font:inherit;
+  font-weight:700; cursor:pointer; touch-action:manipulation; line-height:1.2}
+.btn:focus-visible,.tab:focus-visible{outline:3px solid var(--a); outline-offset:2px}
+.btn-primary{background:var(--night); color:#fff}
+.btn-ok{background:var(--ok); color:#fff}
+.btn-ghost{background:var(--card); color:var(--night); border-color:var(--line)}
+.btn:disabled{opacity:.5; cursor:not-allowed}
+.btn:active{transform:translateY(1px)}
+
+/* ===== Çözüm sahnesi ===== */
+.tabs{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; padding:0; list-style:none}
+.tab{width:100%; min-height:56px; display:flex; align-items:center; justify-content:center; gap:8px; padding:8px;
+  border:2px solid var(--line); border-radius:14px; background:var(--card); color:var(--night); font:inherit; font-weight:700;
+  font-size:.95rem; cursor:pointer; touch-action:manipulation; text-align:center; line-height:1.2}
+.tab .n{flex:0 0 30px; width:30px; height:30px; border-radius:50%; background:var(--mist); display:inline-flex; align-items:center; justify-content:center}
+.tab[aria-selected="true"]{background:var(--night); border-color:var(--night); color:#fff}
+.tab[aria-selected="true"] .n{background:#fff; color:var(--night)}
+.tab.done .n{background:var(--ok); color:#fff}
+.stage{margin-top:14px; min-height:320px; display:flex; align-items:center; justify-content:center; padding:14px 8px}
+.stage svg{width:100%; height:auto; max-height:56vh; display:block}
+.controls{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:14px}
+.controls .btn{flex:1 1 160px}
+
+/* Adım adım beliren öğeler */
+.step{opacity:0; transform:translateY(10px); transition:opacity .7s ease, transform .7s ease}
+.step.on{opacity:1; transform:none}
+
+/* Yol 1: Genişletme */
+.m1{width:100%; display:flex; flex-direction:column; align-items:center; gap:20px}
+.m1-kat{background:var(--mist); border-radius:12px; padding:8px 14px; text-align:center; font-size:1rem; color:var(--night)}
+.m1-kat b{display:inline-block; background:var(--ok); color:#fff; border-radius:8px; padding:0 7px}
+.m1-rows{display:flex; flex-wrap:wrap; justify-content:center; gap:22px 48px}
+.exp{display:flex; align-items:stretch; gap:10px}
+.exp>.step{display:flex; align-items:center}
+.mult{flex-direction:column; justify-content:space-around !important}
+.mult span{display:block; border-radius:999px; padding:1px 9px; font-weight:700; font-size:1rem; white-space:nowrap}
+.mult.a span{background:var(--a-soft); color:var(--a)}
+.mult.b span{background:var(--b-soft); color:var(--b)}
+.m1-sum{display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center; color:var(--night)}
+.m1-sum>.step{display:flex; align-items:center; gap:12px}
+.op{font-size:2.2rem; font-weight:700; color:var(--night)}
+.res-box{border:3px solid var(--ok); border-radius:14px; padding:4px 8px; background:var(--ok-soft)}
+.m1-note{font-size:1.05rem; color:var(--night); text-align:center}
+.ca{color:var(--a)} .cb{color:var(--b)}
+
+/* SVG içi animasyon sınıfları */
+.fade{opacity:0; transition:opacity .8s ease}
+.fade.on{opacity:1}
+.mv{transition:opacity .8s ease, transform 1.5s cubic-bezier(.55,0,.25,1)}
+.arc{fill:none; stroke-width:5; stroke-linecap:round; stroke-dasharray:1; stroke-dashoffset:1; transition:stroke-dashoffset .8s ease}
+.arc.on{stroke-dashoffset:0}
+.hl text{fill:#1F8A5B} .hl line{stroke:#1F8A5B}
+.pulse{transform-box:fill-box; transform-origin:center; animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1); opacity:.9} 50%{transform:scale(1.35); opacity:.35}}
+
+/* ===== Kapanış ===== */
+.sum-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin:16px 0}
+.sum-card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; color:var(--night)}
+.sum-card h3{margin:0 0 8px; font-size:1.05rem}
+.sum-card h3 .n{display:inline-flex; width:28px; height:28px; border-radius:50%; background:var(--ok); color:#fff; align-items:center; justify-content:center; margin-right:6px}
+.sum-card p{margin:0; font-size:1.05rem; line-height:2}
+.end-row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:8px}
+.end-row .btn{flex:1 1 200px; max-width:320px}
+
+.foot{margin-top:26px; text-align:center; font-size:.82rem; color:#7A8895}
+
+/* ===== Dar ekran (telefon) ===== */
+@media (max-width:520px){
+  body{font-size:17px}
+  .card{padding:14px}
+  .avatar{flex-basis:54px} .avatar svg{width:48px; height:48px}
+  .bubble{font-size:1.02rem; padding:10px 12px}
+  .tab{flex-direction:column; gap:4px; font-size:.82rem; padding:6px 4px}
+  .frac.xl{font-size:2.1rem}
+  .exp{gap:6px}
+  .mult span{font-size:.9rem; padding:1px 6px}
+  .stage{min-height:260px; padding:10px 0}
+  .give-up .note{margin-left:0}
+}
+/* Yatay tablet/telefon: yükseklik az */
+@media (max-height:520px) and (orientation:landscape){
+  .equation{margin:10px 0}
+  .stage{min-height:220px}
+  .stage svg{max-height:62vh}
+}
+/* Hareket azaltma tercihi: animasyonları kısalt */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.2s !important; animation-iteration-count:1 !important; transition-duration:.2s !important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="tag">Örnek ders öncesi etkinlik · 6. sınıf matematik</span>
+  </div>
+
+  <!-- ========== 1) GİRİŞ SAHNESİ ========== -->
+  <section id="sIntro" class="scene" aria-label="Soru">
+    <div class="teacher">
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="29" fill="#E4EDF9"/><path d="M12 58c2-11 9-16 18-16s16 5 18 16z" fill="#13293D"/><circle cx="30" cy="25" r="12" fill="#F2C9A5"/><path d="M17 24c0-9 6-14 13-14s13 5 13 13c-4-4-9-5-14-5-5 0-9 2-12 6z" fill="#5A3A22"/><circle cx="25" cy="26" r="3.6" fill="none" stroke="#13293D" stroke-width="1.6"/><circle cx="35" cy="26" r="3.6" fill="none" stroke="#13293D" stroke-width="1.6"/><path d="M28.6 26h2.8" stroke="#13293D" stroke-width="1.6"/><path d="M26 31.5q4 3 8 0" fill="none" stroke="#13293D" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Öğretmenin
+      </div>
+      <div class="bubble" id="introMsg" aria-live="polite"></div>
+    </div>
+
+    <!-- Büyük denklem: 1/2 + 1/3 = ? -->
+    <div class="equation" aria-label="İkide bir artı üçte bir eşittir kaç">
+      <span class="eq-part" id="eq1"><span class="frac c-a"><span class="num">1</span><span class="den">2</span></span></span>
+      <span class="eq-part" id="eq2">+</span>
+      <span class="eq-part" id="eq3"><span class="frac c-b"><span class="num">1</span><span class="den">3</span></span></span>
+      <span class="eq-part" id="eq4">=</span>
+      <span class="eq-part" id="eq5"><span class="qbox">?</span></span>
+    </div>
+
+    <!-- Cevap kartı -->
+    <div class="card answer-card hidden" id="answerCard">
+      <p class="ans-title">Cevabını yaz:</p>
+      <div class="ans-row">
+        <div class="ans-eq" aria-hidden="true">
+          <span class="frac c-a"><span class="num">1</span><span class="den">2</span></span>+<span class="frac c-b"><span class="num">1</span><span class="den">3</span></span>=
+        </div>
+        <div class="ans-frac" id="ansFrac">
+          <input id="inNum" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" aria-label="Pay (üstteki sayı)">
+          <div class="ans-bar"></div>
+          <input id="inDen" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" aria-label="Payda (alttaki sayı)">
+        </div>
+        <button class="btn btn-primary" id="btnCheck" type="button">Kontrol et</button>
+      </div>
+      <div class="tries" id="tries" aria-live="polite"></div>
+      <div class="feedback" id="feedback" aria-live="polite"></div>
+      <div class="watch-row hidden" id="watchRow">
+        <button class="btn btn-ok" id="btnWatch" type="button">Çözümü izle →</button>
+      </div>
+
+      <div class="give-up off" id="giveUpBox">
+        <label for="giveUp">
+          <input type="checkbox" id="giveUp" disabled>
+          <span>Uğraştım ama çözemedim, çözümü izlemek istiyorum</span>
+        </label>
+        <p class="note" id="giveUpNote">Önce bir kez dene, sonra açılır.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 3) ÇÖZÜM SAHNESİ ========== -->
+  <section id="sSol" class="scene hidden" aria-label="Çözüm">
+    <h2>Üç yoldan çözelim</h2>
+    <div class="tabs" role="tablist" aria-label="Çözüm yolları">
+      <button class="tab" role="tab" type="button" id="tab0" data-i="0"><span class="n">1</span><span>Genişletme</span></button>
+      <button class="tab" role="tab" type="button" id="tab1" data-i="1"><span class="n">2</span><span>Kesir kartları</span></button>
+      <button class="tab" role="tab" type="button" id="tab2" data-i="2"><span class="n">3</span><span>Sayı doğrusu</span></button>
+    </div>
+    <div class="teacher">
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="29" fill="#E4EDF9"/><path d="M12 58c2-11 9-16 18-16s16 5 18 16z" fill="#13293D"/><circle cx="30" cy="25" r="12" fill="#F2C9A5"/><path d="M17 24c0-9 6-14 13-14s13 5 13 13c-4-4-9-5-14-5-5 0-9 2-12 6z" fill="#5A3A22"/><circle cx="25" cy="26" r="3.6" fill="none" stroke="#13293D" stroke-width="1.6"/><circle cx="35" cy="26" r="3.6" fill="none" stroke="#13293D" stroke-width="1.6"/><path d="M28.6 26h2.8" stroke="#13293D" stroke-width="1.6"/><path d="M26 31.5q4 3 8 0" fill="none" stroke="#13293D" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Öğretmenin
+      </div>
+      <div class="bubble" id="solMsg" aria-live="polite"></div>
+    </div>
+    <div class="card stage" id="stage" role="tabpanel"></div>
+    <div class="controls">
+      <button class="btn btn-ghost" id="btnReplay" type="button">↻ Tekrar oynat</button>
+      <button class="btn btn-primary" id="btnNext" type="button">Sonraki yol →</button>
+    </div>
+  </section>
+
+  <!-- ========== 4) KAPANIŞ ========== -->
+  <section id="sEnd" class="scene hidden" aria-label="Özet">
+    <h2>Özetle: <span class="frac c-a sm"><span class="num">1</span><span class="den">2</span></span> + <span class="frac c-b sm"><span class="num">1</span><span class="den">3</span></span> = <span class="frac c-ok sm"><span class="num">5</span><span class="den">6</span></span></h2>
+    <div class="teacher">
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="29" fill="#E4EDF9"/><path d="M12 58c2-11 9-16 18-16s16 5 18 16z" fill="#13293D"/><circle cx="30" cy="25" r="12" fill="#F2C9A5"/><path d="M17 24c0-9 6-14 13-14s13 5 13 13c-4-4-9-5-14-5-5 0-9 2-12 6z" fill="#5A3A22"/><circle cx="25" cy="26" r="3.6" fill="none" stroke="#13293D" stroke-width="1.6"/><circle cx="35" cy="26" r="3.6" fill="none" stroke="#13293D" stroke-width="1.6"/><path d="M28.6 26h2.8" stroke="#13293D" stroke-width="1.6"/><path d="M26 31.5q4 3 8 0" fill="none" stroke="#13293D" stroke-width="1.6" stroke-linecap="round"/></svg>
+        Öğretmenin
+      </div>
+      <div class="bubble"><span class="msg">Aferin, üç yolu da gördün! Hepsi aynı sonuca çıktı. <b>Yarın derste bunun benzerlerini birlikte çözeceğiz!</b></span></div>
+    </div>
+    <div class="sum-grid" id="sumGrid"></div>
+    <div class="end-row">
+      <button class="btn btn-ghost" id="btnBack" type="button">← Çözümlere dön</button>
+      <button class="btn btn-primary" id="btnRestart" type="button">↻ Baştan başla</button>
+    </div>
+  </section>
+
+  <p class="foot">Bu sayfa ters yüz sınıf sunumu için hazırlanmış bir örnektir.</p>
+</div>
+
+<script>
+"use strict";
+
+/* ================= AYARLAR ================= */
+// true: "Çözemedim" kutucuğu ilk denemeden sonra açılır. false: baştan açık.
+const CHECKBOX_AFTER_FIRST_TRY = true;
+// Hareket azaltma tercihi varsa bekleme sürelerini biraz kısalt
+const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SPEED = REDUCED ? 0.6 : 1;
+// SVG içinde kullanılan renkler (CSS değişkenleriyle aynı)
+const C = {a:"#1E5BB8", b:"#C2530E", night:"#13293D", ok:"#1F8A5B", err:"#B42318", text:"#3F5163", line:"#DCE3EA", mist:"#E8EEF3", aSoft:"#E4EDF9", bSoft:"#FBE9DC"};
+
+const $ = id => document.getElementById(id);
+
+/* ================= YARDIMCILAR ================= */
+// HTML kesir: pay üstte, payda altta
+function F(n, d, c, size){
+  return `<span class="frac c-${c||"r"} ${size||"sm"}"><span class="num">${n}</span><span class="den">${d}</span></span>`;
+}
+// SVG kesir: (x, kesir çizgisinin y'si)
+function sf(x, yBar, n, d, color, size, attrs){
+  size = size || 22;
+  const w = size * 0.62 * Math.max(String(n).length, String(d).length) + 8;
+  return `<g ${attrs||""}>` +
+    `<text x="${x}" y="${(yBar - size*0.22).toFixed(1)}" font-size="${size}" font-weight="700" text-anchor="middle" fill="${color}">${n}</text>` +
+    `<line x1="${(x-w/2).toFixed(1)}" x2="${(x+w/2).toFixed(1)}" y1="${yBar}" y2="${yBar}" stroke="${color}" stroke-width="${(size/11).toFixed(1)}" stroke-linecap="round"/>` +
+    `<text x="${x}" y="${(yBar + size*0.92).toFixed(1)}" font-size="${size}" font-weight="700" text-anchor="middle" fill="${color}">${d}</text>` +
+    `</g>`;
+}
+
+// Zamanlayıcı: her yeni oynatmada runId artar, eski animasyon iptal olur
+const CANCEL = {iptal:true};
+let runId = 0;
+function newRun(){ return ++runId; }
+function wait(ms){
+  const id = runId;
+  return new Promise((res, rej) => setTimeout(() => (id === runId ? res() : rej(CANCEL)), ms * SPEED));
+}
+async function runSafe(fn){
+  try { await fn(); } catch(e){ if (e !== CANCEL) console.error(e); }
+}
+
+// Balona metin yaz (words=true ise kelime kelime belirir)
+function say(el, html, words){
+  if (words){
+    const parts = html.split(" ");
+    el.innerHTML = parts.map((w, i) => `<span class="w" style="animation-delay:${(i*0.11*SPEED).toFixed(2)}s">${w}</span>`).join(" ");
+  } else {
+    el.innerHTML = `<span class="msg">${html}</span>`;
+  }
+}
+const on  = id => { const e = $(id); if (e) e.classList.add("on"); };
+const off = id => { const e = $(id); if (e) e.classList.remove("on"); };
+
+/* DEĞERLENDİRME-BAŞLA */
+// Cevabı değerlendirir. kind: empty | noNum | noDen | invalid | zeroDen | correct | equivalent | wrong
+function evaluateAnswer(numStr, denStr){
+  const n = String(numStr == null ? "" : numStr).trim();
+  const d = String(denStr == null ? "" : denStr).trim();
+  if (n === "" && d === "") return {kind:"empty"};
+  if (n === "") return {kind:"noNum"};
+  if (!/^\d+$/.test(n) || (d !== "" && !/^\d+$/.test(d))) return {kind:"invalid"};
+  const N = parseInt(n, 10);
+  if (d === ""){
+    // Sadece "1" yazdıysa: bütün = 1 hatası
+    if (N === 1) return {kind:"wrong", hint:"whole"};
+    return {kind:"noDen"};
+  }
+  const D = parseInt(d, 10);
+  if (D === 0) return {kind:"zeroDen"};
+  if (N === 5 && D === 6) return {kind:"correct"};
+  if (N * 6 === D * 5) return {kind:"equivalent"};          // 10/12, 15/18 ...
+  if (N === 2 && D === 5) return {kind:"wrong", hint:"sumBoth"}; // payları ve paydaları toplamış
+  if (D === 6 && (N === 1 || N === 2)) return {kind:"wrong", hint:"den6"};
+  if (N === D) return {kind:"wrong", hint:"whole"};          // 5/5, 6/6 = 1
+  return {kind:"wrong", hint:"general"};
+}
+/* DEĞERLENDİRME-BİTİR */
+
+/* ================= DURUM ================= */
+const state = {tries:0, wrong:0, solved:false, method:0, done:[false,false,false]};
+
+/* ================= 1) GİRİŞ ================= */
+async function runIntro(){
+  newRun();
+  ["eq1","eq2","eq3","eq4","eq5"].forEach(off);
+  $("answerCard").classList.add("hidden");
+  $("introMsg").innerHTML = "";
+  await wait(300);
+  say($("introMsg"), "Merhaba! Ben öğretmenin. Sana bir sorum var.", true);
+  await wait(1700);
+  say($("introMsg"), "Bir pastanın yarısını Ali, üçte birini Ayşe yedi. İkisi birlikte pastanın ne kadarını yedi?", true);
+  await wait(2300);
+  for (const id of ["eq1","eq2","eq3","eq4","eq5"]){ on(id); await wait(550); }
+  await wait(300);
+  $("answerCard").classList.remove("hidden");
+}
+
+/* ================= 2) CEVAP ================= */
+function resetAnswer(){
+  state.tries = 0; state.wrong = 0; state.solved = false;
+  $("inNum").value = ""; $("inDen").value = "";
+  $("inNum").disabled = false; $("inDen").disabled = false; $("btnCheck").disabled = false;
+  $("ansFrac").classList.remove("good","bad");
+  $("tries").textContent = "";
+  $("feedback").innerHTML = "";
+  $("watchRow").classList.add("hidden");
+  $("giveUp").checked = false;
+  setCheckbox(!CHECKBOX_AFTER_FIRST_TRY);
+  $("giveUpNote").classList.toggle("hidden", !CHECKBOX_AFTER_FIRST_TRY);
+}
+function setCheckbox(enabled){
+  $("giveUp").disabled = !enabled;
+  $("giveUpBox").classList.toggle("off", !enabled);
+  if (enabled) $("giveUpNote").classList.add("hidden");
+}
+function feedback(type, html){
+  $("feedback").innerHTML = `<div class="fb ${type}">${html}</div>`;
+}
+// Bilinen hatalara özel ipuçları
+const HINTS = {
+  sumBoth: `Payları ve paydaları ayrı ayrı mı topladın? Önce paydaların eşit olup olmadığına bak.`,
+  den6:    `Paydayı 6 yapman güzel, peki pay ne olmalı? ${F(1,2,"a")} kaç tane ${F(1,6,"r")} eder?`,
+  whole:   `Bu bir bütün eder. Pastanın tamamı yenmiş olur mu? Tekrar düşün.`,
+  general: `İpucu: İki kesrin paydasını eşitlemeyi dene. 2 ve 3'ün ortak katı ne?`
+};
+const SOFT = {
+  empty:   "Önce pay ve paydayı yaz, sonra kontrol et.",
+  noNum:   "Payı (üstteki sayıyı) yazmayı unutma.",
+  noDen:   "Paydayı (alttaki sayıyı) da yazmayı unutma.",
+  invalid: "Lütfen sadece rakam yaz.",
+  zeroDen: "Payda 0 olamaz; bir bütünü 0 parçaya bölemeyiz. Başka bir payda dene."
+};
+
+function shake(){
+  const el = $("ansFrac");
+  el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+}
+function celebrate(){
+  const card = $("answerCard");
+  const cols = [C.a, C.b, C.ok, C.night, "#F2B705"];
+  for (let i = 0; i < 26; i++){
+    const s = document.createElement("span");
+    s.className = "confetti";
+    const ang = Math.random() * Math.PI * 2, dist = 70 + Math.random() * 140;
+    s.style.setProperty("--dx", Math.round(Math.cos(ang) * dist * 1.6) + "px");
+    s.style.setProperty("--dy", Math.round(Math.sin(ang) * dist) + "px");
+    s.style.setProperty("--rot", Math.round(Math.random() * 720 - 360) + "deg");
+    s.style.background = cols[i % cols.length];
+    card.appendChild(s);
+    setTimeout(() => s.remove(), 1500);
+  }
+}
+
+function onCheck(){
+  if (state.solved) return;
+  const r = evaluateAnswer($("inNum").value, $("inDen").value);
+  if (SOFT[r.kind]){ feedback("info", `<p>${SOFT[r.kind]}</p>`); return; }   // sayılmaz
+
+  state.tries++;
+  $("tries").textContent = "Deneme: " + state.tries;
+  setCheckbox(true);                       // ilk denemeden sonra kutucuk açılır
+  $("ansFrac").classList.remove("good","bad");
+
+  if (r.kind === "correct"){
+    state.solved = true;
+    $("ansFrac").classList.add("good");
+    $("inNum").disabled = true; $("inDen").disabled = true; $("btnCheck").disabled = true;
+    feedback("ok", `<p><b>Harika, doğru!</b> Şimdi çözümü birlikte inceleyelim.</p>`);
+    celebrate();
+    $("watchRow").classList.remove("hidden");
+    $("btnWatch").focus({preventScroll:true});
+  } else if (r.kind === "equivalent"){
+    $("ansFrac").classList.add("good");
+    feedback("ok", `<p><b>Doğru! Ama sadeleştirebilir misin?</b></p><p class="hint">Pay ve paydayı aynı sayıya bölmeyi dene. İstersen çözümü de izleyebilirsin.</p>`);
+    $("watchRow").classList.remove("hidden");
+  } else {
+    state.wrong++;
+    $("ansFrac").classList.add("bad");
+    let html = `<p><b>Cevabın yanlış, tekrar dene.</b></p>`;
+    if (r.hint !== "general" || state.wrong >= 2) html += `<p class="hint">${HINTS[r.hint]}</p>`;
+    feedback("err", html);
+    shake();
+  }
+}
+
+/* ================= 3) ÇÖZÜM ================= */
+const METHODS = [playM1, playM2, playM3];
+
+function goSolution(){
+  $("sIntro").classList.add("hidden");
+  $("sEnd").classList.add("hidden");
+  $("sSol").classList.remove("hidden");
+  window.scrollTo({top:0, behavior: REDUCED ? "auto" : "smooth"});
+  playMethod(state.method || 0);
+}
+function playMethod(i){
+  newRun();
+  state.method = i;
+  for (let k = 0; k < 3; k++){
+    const t = $("tab" + k);
+    t.setAttribute("aria-selected", k === i ? "true" : "false");
+    t.classList.toggle("done", state.done[k]);
+    t.querySelector(".n").textContent = state.done[k] ? "✓" : String(k + 1);
+  }
+  $("btnNext").textContent = i < 2 ? "Sonraki yol →" : "Özete geç →";
+  runSafe(METHODS[i]);
+}
+function markDone(i){
+  state.done[i] = true;
+  const t = $("tab" + i);
+  t.classList.add("done");
+  t.querySelector(".n").textContent = "✓";
+}
+const solSay = html => say($("solMsg"), html);
+
+/* ---------- Yol 1: Genişletme ---------- */
+function m1HTML(){
+  return `<div class="m1">
+    <div class="m1-rows">
+      <div class="exp">
+        <div class="step" id="m1a">${F(1,2,"a","xl")}</div>
+        <div class="step mult a" id="m1x1"><span>×3 →</span><span>×3 →</span></div>
+        <div class="step" id="m1g1">${F(3,6,"a","xl")}</div>
+      </div>
+      <div class="exp">
+        <div class="step" id="m1b">${F(1,3,"b","xl")}</div>
+        <div class="step mult b" id="m1x2"><span>×2 →</span><span>×2 →</span></div>
+        <div class="step" id="m1g2">${F(2,6,"b","xl")}</div>
+      </div>
+    </div>
+    <div class="m1-kat step" id="m1kat">2'nin katları: 2, 4, <b>6</b>, 8 … &nbsp;·&nbsp; 3'ün katları: 3, <b>6</b>, 9 …</div>
+    <div class="m1-sum">
+      <div class="step" id="m1sum">${F(3,6,"a","xl")}<span class="op">+</span>${F(2,6,"b","xl")}</div>
+      <div class="step" id="m1res"><span class="op">=</span><span class="res-box">${F(5,6,"r","xl")}</span></div>
+    </div>
+    <div class="m1-note step" id="m1note">Paylar: <b class="ca">3</b> + <b class="cb">2</b> = <b>5</b> &nbsp;·&nbsp; Payda aynı kalır: <b>6</b></div>
+  </div>`;
+}
+async function playM1(){
+  $("stage").innerHTML = m1HTML();
+  solSay(`Önce kesirlerimize bakalım: ${F(1,2,"a")} ve ${F(1,3,"b")}. Paydaları farklı!`);
+  await wait(400); on("m1a"); await wait(500); on("m1b");
+  await wait(1800);
+  solSay(`Paydaları eşitlemeliyiz. 2 ile 3'ün ortak katı 6.`);
+  on("m1kat");
+  await wait(2200);
+  solSay(`${F(1,2,"a")} kesrinin payını ve paydasını 3 ile çarpıyoruz (genişletiyoruz).`);
+  on("m1x1"); await wait(1400); on("m1g1");
+  await wait(1700);
+  solSay(`${F(1,3,"b")} kesrinin payını ve paydasını 2 ile çarpıyoruz.`);
+  on("m1x2"); await wait(1400); on("m1g2");
+  await wait(1700);
+  solSay(`Şimdi ${F(3,6,"a")} ile ${F(2,6,"b")} kesirlerini toplayalım.`);
+  on("m1sum");
+  await wait(1700);
+  solSay(`Paydalar eşit, payları topluyoruz: 3 + 2 = 5. Payda aynı kalır: 6.`);
+  on("m1res"); await wait(700); on("m1note");
+  await wait(800);
+  markDone(0);
+}
+
+/* ---------- Yol 2: Kesir kartları ---------- */
+// Şerit: x 70..502 (6 parça × 72), satırlar y=20, 110, 210, yükseklik 56
+function m2SVG(){
+  const X0 = 70, S = 72, W = S * 6, H = 56, Y1 = 20, Y2 = 110, Y3 = 210;
+  let s = `<svg viewBox="0 0 640 290" role="img" aria-label="Kesir kartları: üç mavi ve iki turuncu altıda bir parça, altı parçalık şeride yerleşiyor">`;
+  // 1/2 şeridi
+  s += `<g id="m2s1" class="fade">
+    <rect x="${X0}" y="${Y1}" width="${W}" height="${H}" rx="6" fill="#fff" stroke="${C.night}" stroke-width="2"/>
+    <rect id="m2big1" class="fade on" x="${X0}" y="${Y1}" width="${S*3}" height="${H}" rx="6" fill="${C.a}"/>
+    <line x1="${X0+S*3}" x2="${X0+S*3}" y1="${Y1}" y2="${Y1+H}" stroke="${C.night}" stroke-width="2"/>
+    ${sf(34, Y1+28, 1, 2, C.a, 26)}
+  </g>`;
+  // 1/3 şeridi
+  s += `<g id="m2s2" class="fade">
+    <rect x="${X0}" y="${Y2}" width="${W}" height="${H}" rx="6" fill="#fff" stroke="${C.night}" stroke-width="2"/>
+    <rect id="m2big2" class="fade on" x="${X0}" y="${Y2}" width="${S*2}" height="${H}" rx="6" fill="${C.b}"/>
+    <line x1="${X0+S*2}" x2="${X0+S*2}" y1="${Y2}" y2="${Y2+H}" stroke="${C.night}" stroke-width="2"/>
+    <line x1="${X0+S*4}" x2="${X0+S*4}" y1="${Y2}" y2="${Y2+H}" stroke="${C.night}" stroke-width="2"/>
+    ${sf(34, Y2+28, 1, 3, C.b, 26)}
+  </g>`;
+  // 6'ya bölen kesikli çizgiler
+  let cuts = "";
+  for (let k = 1; k < 6; k++){
+    const x = X0 + S*k;
+    cuts += `<line x1="${x}" x2="${x}" y1="${Y1}" y2="${Y1+H}" stroke="${C.night}" stroke-width="2" stroke-dasharray="5 4"/>`;
+    cuts += `<line x1="${x}" x2="${x}" y1="${Y2}" y2="${Y2+H}" stroke="${C.night}" stroke-width="2" stroke-dasharray="5 4"/>`;
+  }
+  s += `<g id="m2cut" class="fade">${cuts}</g>`;
+  // Sağdaki eşitlikler: = 3/6, = 2/6
+  s += `<g id="m2eq1" class="fade"><text x="528" y="${Y1+37}" font-size="26" font-weight="700" fill="${C.night}" text-anchor="middle">=</text>${sf(578, Y1+28, 3, 6, C.a, 26)}</g>`;
+  s += `<g id="m2eq2" class="fade"><text x="528" y="${Y2+37}" font-size="26" font-weight="700" fill="${C.night}" text-anchor="middle">=</text>${sf(578, Y2+28, 2, 6, C.b, 26)}</g>`;
+  // Sonuç şeridi (6 boş yuva)
+  let slots = "";
+  for (let k = 1; k < 6; k++) slots += `<line x1="${X0+S*k}" x2="${X0+S*k}" y1="${Y3}" y2="${Y3+H}" stroke="${C.line}" stroke-width="2"/>`;
+  s += `<g id="m2s3" class="fade">
+    <rect x="${X0}" y="${Y3}" width="${W}" height="${H}" rx="6" fill="#fff" stroke="${C.night}" stroke-width="2"/>${slots}
+    <text x="34" y="${Y3+34}" font-size="16" font-weight="700" fill="${C.night}" text-anchor="middle">Toplam</text>
+  </g>`;
+  // Boş parça vurgusu
+  s += `<g id="m2empty" class="fade">
+    <rect x="${X0+S*5+3}" y="${Y3+3}" width="${S-6}" height="${H-6}" rx="5" fill="${C.mist}" stroke="${C.err}" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="${X0+S*5+S/2}" y="${Y3+34}" font-size="17" font-weight="700" fill="${C.err}" text-anchor="middle">boş</text>
+  </g>`;
+  // Taşınacak 1/6 parçaları (3 mavi + 2 turuncu)
+  for (let i = 0; i < 3; i++){
+    s += `<g id="m2pa${i}" class="fade mv"><rect x="${X0+S*i}" y="${Y1}" width="${S}" height="${H}" fill="${C.a}" stroke="#fff" stroke-width="3"/>${sf(X0+S*i+S/2, Y1+28, 1, 6, "#fff", 17)}</g>`;
+  }
+  for (let i = 0; i < 2; i++){
+    s += `<g id="m2pb${i}" class="fade mv"><rect x="${X0+S*i}" y="${Y2}" width="${S}" height="${H}" fill="${C.b}" stroke="#fff" stroke-width="3"/>${sf(X0+S*i+S/2, Y2+28, 1, 6, "#fff", 17)}</g>`;
+  }
+  // Sonuç: = 5/6
+  s += `<g id="m2res" class="fade"><text x="528" y="${Y3+37}" font-size="26" font-weight="700" fill="${C.night}" text-anchor="middle">=</text>${sf(578, Y3+28, 5, 6, C.ok, 28)}</g>`;
+  return s + `</svg>`;
+}
+async function playM2(){
+  $("stage").innerHTML = m2SVG();
+  solSay(`Bu bir kesir kartı. Mavi şeridin yarısı dolu: ${F(1,2,"a")}.`);
+  await wait(400); on("m2s1");
+  await wait(1800);
+  solSay(`Turuncu şeridin üçte biri dolu: ${F(1,3,"b")}.`);
+  on("m2s2");
+  await wait(1900);
+  solSay(`Şimdi iki şeridi de 6 eşit parçaya bölelim.`);
+  on("m2cut");
+  await wait(1700);
+  off("m2big1"); off("m2big2");
+  ["m2pa0","m2pa1","m2pa2","m2pb0","m2pb1"].forEach(on);
+  solSay(`${F(1,2,"a")} = 3 tane ${F(1,6,"a")}, &nbsp; ${F(1,3,"b")} = 2 tane ${F(1,6,"b")} eder. Renkler aynı kaldı.`);
+  await wait(700); on("m2eq1"); await wait(600); on("m2eq2");
+  await wait(2000);
+  solSay(`Parçaları tek bir 6'lık şeritte birleştirelim.`);
+  on("m2s3");
+  await wait(900);
+  // Mavi parçalar aşağı (190 birim), turuncular sağa-aşağı (216, 100)
+  for (let i = 0; i < 3; i++){ $("m2pa"+i).style.transform = "translate(0px,190px)"; await wait(250); }
+  for (let i = 0; i < 2; i++){ $("m2pb"+i).style.transform = "translate(216px,100px)"; await wait(250); }
+  await wait(1700);
+  solSay(`6 parçanın 5'i dolu: ${F(5,6,"ok")}. Bir parça boş, yani pastanın tamamı yenmedi.`);
+  on("m2empty"); await wait(600); on("m2res");
+  await wait(800);
+  markDone(1);
+}
+
+/* ---------- Yol 3: Sayı doğrusu ---------- */
+// Doğru: x 50..590 (6 aralık × 90), y = 150
+function m3SVG(){
+  const X0 = 50, U = 90, Y = 150, X = k => X0 + U*k;
+  let s = `<svg viewBox="0 0 640 250" role="img" aria-label="Sayı doğrusu: önce üç adım mavi, sonra iki adım turuncu sıçrama ile altıda beşe varılıyor">`;
+  // Doğru ve uç çentikleri
+  s += `<g id="m3base" class="fade">
+    <line x1="${X0}" x2="${X(6)}" y1="${Y}" y2="${Y}" stroke="${C.night}" stroke-width="3" stroke-linecap="round"/>
+    <line x1="${X0}" x2="${X0}" y1="${Y-14}" y2="${Y+14}" stroke="${C.night}" stroke-width="3"/>
+    <line x1="${X(6)}" x2="${X(6)}" y1="${Y-14}" y2="${Y+14}" stroke="${C.night}" stroke-width="3"/>
+  </g>`;
+  s += `<g id="m3ends" class="fade" font-size="24" font-weight="700" fill="${C.night}" text-anchor="middle">
+    <text x="${X0}" y="${Y+40}">0</text><text x="${X(6)}" y="${Y+40}">1</text></g>`;
+  // 2'ye bölünmüş hâli
+  s += `<g id="m3half" class="fade"><line x1="${X(3)}" x2="${X(3)}" y1="${Y-12}" y2="${Y+12}" stroke="${C.a}" stroke-width="4"/>${sf(X(3), 108, 1, 2, C.a, 22)}</g>`;
+  // 3'e bölünmüş hâli
+  s += `<g id="m3third" class="fade">
+    <line x1="${X(2)}" x2="${X(2)}" y1="${Y-12}" y2="${Y+12}" stroke="${C.b}" stroke-width="4"/>
+    <line x1="${X(4)}" x2="${X(4)}" y1="${Y-12}" y2="${Y+12}" stroke="${C.b}" stroke-width="4"/>
+    ${sf(X(2), 108, 1, 3, C.b, 22)}${sf(X(4), 108, 2, 3, C.b, 22)}</g>`;
+  // 6'ya bölünmüş hâli + etiketler
+  let six = `<text x="${X0}" y="${Y+48}" font-size="22" font-weight="700" fill="${C.text}" text-anchor="middle">0</text>`;
+  for (let k = 1; k <= 6; k++){
+    if (k < 6) six += `<line x1="${X(k)}" x2="${X(k)}" y1="${Y-10}" y2="${Y+10}" stroke="${C.night}" stroke-width="2.5"/>`;
+    if (k !== 5) six += sf(X(k), 190, k, 6, C.text, 20);
+  }
+  six += `<text x="${X(6)}" y="242" font-size="18" font-weight="700" fill="${C.text}" text-anchor="middle">= 1</text>`;
+  s += `<g id="m3six" class="fade">${six}</g>`;
+  s += `<g id="m3lab5" class="fade">${sf(X(5), 190, 5, 6, C.text, 20)}</g>`;
+  // Başlangıç noktası
+  s += `<circle id="m3start" class="fade" cx="${X0}" cy="${Y}" r="7" fill="${C.night}"/>`;
+  // Sıçrama yayları (pathLength=1 ile çizilme animasyonu)
+  for (let k = 0; k < 5; k++){
+    const col = k < 3 ? C.a : C.b, mid = (X(k) + X(k+1)) / 2;
+    s += `<path id="m3arc${k}" class="arc" pathLength="1" stroke="${col}" d="M${X(k)} ${Y} Q${mid} 92 ${X(k+1)} ${Y}"/>`;
+    s += `<circle id="m3dot${k}" class="fade" cx="${X(k+1)}" cy="${Y}" r="6" fill="${col}"/>`;
+  }
+  // Sıçrama grupları üzerindeki etiketler
+  s += `<g id="m3la" class="fade">${sf((X(0)+X(3))/2, 68, 1, 2, C.a, 24)}</g>`;
+  s += `<g id="m3lb" class="fade"><text x="${(X(3)+X(5))/2 - 26}" y="76" font-size="26" font-weight="700" fill="${C.b}" text-anchor="middle">+</text>${sf((X(3)+X(5))/2, 68, 1, 3, C.b, 24)}</g>`;
+  // 5/6 vurgusu
+  s += `<g id="m3fin" class="fade">
+    <circle class="pulse" cx="${X(5)}" cy="${Y}" r="17" fill="none" stroke="${C.ok}" stroke-width="3"/>
+    <circle cx="${X(5)}" cy="${Y}" r="10" fill="${C.ok}"/></g>`;
+  return s + `</svg>`;
+}
+async function playM3(){
+  $("stage").innerHTML = m3SVG();
+  solSay(`Bu, 0'dan 1'e bir sayı doğrusu.`);
+  await wait(400); on("m3base"); on("m3ends");
+  await wait(1700);
+  solSay(`Doğruyu 2'ye bölersek ${F(1,2,"a")} noktasını buluruz.`);
+  on("m3half");
+  await wait(1700);
+  solSay(`3'e bölersek ${F(1,3,"b")} ve ${F(2,3,"b")} noktalarını buluruz. Ama bu bölmeler birbirini tutmuyor!`);
+  on("m3third");
+  await wait(2200);
+  solSay(`Ortak payda 6: doğruyu 6 eşit aralığa bölelim.`);
+  off("m3half"); off("m3third"); off("m3ends");
+  await wait(500);
+  on("m3six"); on("m3lab5"); on("m3start");
+  await wait(2000);
+  solSay(`Önce ${F(1,2,"a")} kadar ilerleyelim: 3 tane ${F(1,6,"a")} = ${F(3,6,"a")}.`);
+  for (let k = 0; k < 3; k++){ on("m3arc"+k); await wait(750); on("m3dot"+k); await wait(250); }
+  on("m3la");
+  await wait(1500);
+  solSay(`Sonra ${F(1,3,"b")} kadar daha: 2 tane ${F(1,6,"b")}.`);
+  for (let k = 3; k < 5; k++){ on("m3arc"+k); await wait(750); on("m3dot"+k); await wait(250); }
+  on("m3lb");
+  await wait(1300);
+  solSay(`Önce ${F(1,2,"a")} kadar ilerledik, sonra ${F(1,3,"b")} kadar daha: ${F(5,6,"ok")}'ya geldik.`);
+  on("m3fin"); $("m3lab5").classList.add("hl");
+  await wait(800);
+  markDone(2);
+}
+
+/* ================= 4) KAPANIŞ ================= */
+function goEnd(){
+  newRun();
+  $("sSol").classList.add("hidden");
+  $("sEnd").classList.remove("hidden");
+  $("sumGrid").innerHTML = `
+    <div class="sum-card"><h3><span class="n">1</span>Genişletme</h3>
+      <p>${F(1,2,"a")} = ${F(3,6,"a")}, &nbsp; ${F(1,3,"b")} = ${F(2,6,"b")}<br>${F(3,6,"a")} + ${F(2,6,"b")} = ${F(5,6,"ok")}</p></div>
+    <div class="sum-card"><h3><span class="n">2</span>Kesir kartları</h3>
+      <p>3 mavi + 2 turuncu ${F(1,6,"r")} parça.<br>6 parçanın 5'i dolu: ${F(5,6,"ok")}</p></div>
+    <div class="sum-card"><h3><span class="n">3</span>Sayı doğrusu</h3>
+      <p>0'dan 3 adım + 2 adım = 5 adım.<br>Vardığımız nokta: ${F(5,6,"ok")}</p></div>`;
+  window.scrollTo({top:0, behavior: REDUCED ? "auto" : "smooth"});
+}
+function restart(){
+  state.method = 0; state.done = [false,false,false];
+  $("stage").innerHTML = ""; $("solMsg").innerHTML = "";
+  $("sSol").classList.add("hidden"); $("sEnd").classList.add("hidden");
+  $("sIntro").classList.remove("hidden");
+  resetAnswer();
+  window.scrollTo({top:0});
+  runSafe(runIntro);
+}
+
+/* ================= OLAYLAR ================= */
+function onlyDigits(e){ e.target.value = e.target.value.replace(/\D/g, "").slice(0, 3); }
+$("inNum").addEventListener("input", onlyDigits);
+$("inDen").addEventListener("input", onlyDigits);
+[$("inNum"), $("inDen")].forEach(el => el.addEventListener("keydown", e => {
+  if (e.key === "Enter"){ e.preventDefault(); onCheck(); }
+}));
+$("btnCheck").addEventListener("click", onCheck);
+$("btnWatch").addEventListener("click", () => { state.method = 0; goSolution(); });
+$("giveUp").addEventListener("change", e => {
+  if (!e.target.checked) return;
+  feedback("info", `<p><b>Sorun değil, birlikte çözelim!</b></p>`);
+  $("inNum").disabled = true; $("inDen").disabled = true; $("btnCheck").disabled = true;
+  newRun();
+  wait(1300).then(() => { state.method = 0; goSolution(); }).catch(() => {});
+});
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => playMethod(+t.dataset.i)));
+$("btnReplay").addEventListener("click", () => playMethod(state.method));
+$("btnNext").addEventListener("click", () => { if (state.method < 2) playMethod(state.method + 1); else goEnd(); });
+$("btnBack").addEventListener("click", () => { $("sEnd").classList.add("hidden"); $("sSol").classList.remove("hidden"); playMethod(state.method); });
+$("btnRestart").addEventListener("click", restart);
+
+/* Başlat */
+resetAnswer();
+runSafe(runIntro);
+</script>
+</body>
+</html>
